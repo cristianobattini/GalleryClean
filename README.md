@@ -17,6 +17,9 @@ App Expo per pulire la galleria foto con swipe gesture.
 # 1. Installa le dipendenze
 npm install
 
+# Prima di run
+npx expo prebuild --clean
+
 # 2. Per iOS (macOS only)
 npx expo run:ios
 
