@@ -1,6 +1,7 @@
-import React, { useRef, useState, useEffect } from 'react';
-import { StyleSheet, TouchableOpacity, View, Text, ActivityIndicator } from 'react-native';
-import { Video, ResizeMode, AVPlaybackStatus } from 'expo-av';
+import React, { useEffect, useState } from 'react';
+import { StyleSheet, View, ActivityIndicator } from 'react-native';
+import { TapGestureHandler, State } from 'react-native-gesture-handler';
+import { VideoView, useVideoPlayer } from 'expo-video';
 import { Ionicons } from '@expo/vector-icons';
 import * as MediaLibrary from 'expo-media-library';
 import { COLORS } from '../constants/theme';
@@ -12,47 +13,82 @@ interface Props {
 }
 
 export function VideoCard({ id, uri, duration }: Props) {
-  const videoRef = useRef<Video>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [progress, setProgress] = useState(0);
-  const [playableUri, setPlayableUri] = useState<string | null>(null);
+  const [ready, setReady] = useState(false);
 
+  const player = useVideoPlayer({ uri }, (p) => {
+    p.loop = false;
+    p.muted = false;
+  });
+
+  // Resolve localUri (file://) from ph:// asset URI
   useEffect(() => {
+    if (!player) return;
     let cancelled = false;
     (async () => {
       try {
         const info = await MediaLibrary.getAssetInfoAsync(id);
-        if (!cancelled) setPlayableUri(info.localUri ?? uri);
-      } catch {
-        if (!cancelled) setPlayableUri(uri);
+        const resolvedUri = info.localUri ?? uri;
+        if (!cancelled) {
+          player.replace({ uri: resolvedUri });
+          setReady(true);
+        }
+      } catch (error) {
+        if (!cancelled) {
+          player.replace({ uri });
+          setReady(true);
+        }
       }
     })();
     return () => { cancelled = true; };
-  }, [id]);
+  }, [id, player]);
 
-  const togglePlay = async () => {
-    if (!videoRef.current) return;
-    if (isPlaying) {
-      await videoRef.current.pauseAsync();
-    } else {
-      await videoRef.current.playAsync();
-    }
-    setIsPlaying(!isPlaying);
-  };
+  useEffect(() => {
+    if (!player || !player.addListener) return;
+    const sub = player.addListener('playingChange', (playing) => {
+      setIsPlaying(playing);
+    });
+    return () => sub.remove();
+  }, [player]);
 
-  const handleStatus = (status: AVPlaybackStatus) => {
-    if (!status.isLoaded) return;
-    if (status.durationMillis) {
-      setProgress(status.positionMillis / status.durationMillis);
-    }
-    if (status.didJustFinish) {
+  useEffect(() => {
+    if (!player || !player.addListener) return;
+    const sub = player.addListener('playToEnd', () => {
       setIsPlaying(false);
       setProgress(0);
-      videoRef.current?.setPositionAsync(0);
+    });
+    return () => sub.remove();
+  }, [player]);
+
+  useEffect(() => {
+    if (!player) return;
+    const interval = setInterval(() => {
+      try {
+        if (player.duration > 0) {
+          setProgress(player.currentTime / player.duration);
+        }
+      } catch (e) {}
+    }, 250);
+    return () => clearInterval(interval);
+  }, [player]);
+
+  // Pause when card is unmounted (swiped away)
+  useEffect(() => {
+    if (!player) return;
+    return () => { try { player.pause(); } catch {} };
+  }, [player]);
+
+  const togglePlay = () => {
+    if (!player) return;
+    if (isPlaying) {
+      try { player.pause(); } catch {}
+    } else {
+      try { player.play(); } catch {}
     }
   };
 
-  if (!playableUri) {
+  if (!ready) {
     return (
       <View style={[styles.container, styles.loading]}>
         <ActivityIndicator color="#fff" />
@@ -61,31 +97,33 @@ export function VideoCard({ id, uri, duration }: Props) {
   }
 
   return (
-    <View style={styles.container}>
-      <Video
-        ref={videoRef}
-        source={{ uri: playableUri }}
-        style={styles.video}
-        resizeMode={ResizeMode.COVER}
-        onPlaybackStatusUpdate={handleStatus}
-        isLooping={false}
-        isMuted={false}
-      />
+    <TapGestureHandler
+      onHandlerStateChange={({ nativeEvent }) => {
+        if (nativeEvent.state === State.ACTIVE) togglePlay();
+      }}
+    >
+      <View style={styles.container}>
+        <VideoView
+          player={player}
+          style={styles.video}
+          contentFit="cover"
+          nativeControls={false}
+          allowsFullscreen={false}
+        />
 
-      {/* Play/Pause overlay */}
-      <TouchableOpacity style={styles.playOverlay} onPress={togglePlay} activeOpacity={0.8}>
         {!isPlaying && (
-          <View style={styles.playButton}>
-            <Ionicons name="play" size={36} color="#fff" />
+          <View style={styles.playOverlay} pointerEvents="none">
+            <View style={styles.playButton}>
+              <Ionicons name="play" size={36} color="#fff" />
+            </View>
           </View>
         )}
-      </TouchableOpacity>
 
-      {/* Progress bar */}
-      <View style={styles.progressBar}>
-        <View style={[styles.progressFill, { width: `${progress * 100}%` }]} />
+        <View style={styles.progressBar}>
+          <View style={[styles.progressFill, { width: `${progress * 100}%` }]} />
+        </View>
       </View>
-    </View>
+    </TapGestureHandler>
   );
 }
 

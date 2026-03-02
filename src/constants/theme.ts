@@ -4,7 +4,7 @@ export const COLORS = {
   bgElevated: '#1c1c1c',
   border: '#2a2a2a',
   accent: '#ff3b3b',      // delete — red
-  keep: '#00e5a0',        // keep — green
+  keep: '#6248E0',        // keep — primary
   text: '#f0f0f0',
   textMuted: '#666666',
   textDim: '#333333',
