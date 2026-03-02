@@ -7,6 +7,7 @@ import React, {
   useRef,
 } from 'react';
 import * as MediaLibrary from 'expo-media-library';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -66,7 +67,8 @@ type GalleryAction =
   | { type: 'SET_FILTER'; payload: FilterMode }
   | { type: 'SET_SORT'; payload: SortMode }
   | { type: 'COMMIT_DELETES' }
-  | { type: 'REMOVE_DELETED_ASSETS'; payload: string[] };
+  | { type: 'REMOVE_DELETED_ASSETS'; payload: string[] }
+  | { type: 'RESTORE_SESSION'; payload: PersistedSession };
 
 // ─── Reducer ──────────────────────────────────────────────────────────────────
 
@@ -144,9 +146,48 @@ function galleryReducer(state: GalleryState, action: GalleryAction): GalleryStat
       };
     }
 
+    case 'RESTORE_SESSION': {
+      const { currentIndex, toDelete, toKeep, history } = action.payload;
+      // Clamp index to valid range
+      const safeIndex = Math.min(currentIndex, state.assets.length);
+      return { ...state, currentIndex: safeIndex, toDelete, toKeep, history };
+    }
+
     default:
       return state;
   }
+}
+
+// ─── Persistence ──────────────────────────────────────────────────────────────
+
+const STORAGE_KEY = 'gallery_session';
+
+interface PersistedSession {
+  filterMode: FilterMode;
+  sortMode: SortMode;
+  selectedAlbum: string | null;
+  currentIndex: number;
+  toDelete: GalleryAsset[];
+  toKeep: GalleryAsset[];
+  history: HistoryEntry[];
+}
+
+async function saveSession(state: GalleryState) {
+  const session: PersistedSession = {
+    filterMode: state.filterMode,
+    sortMode: state.sortMode,
+    selectedAlbum: state.selectedAlbum,
+    currentIndex: state.currentIndex,
+    toDelete: state.toDelete,
+    toKeep: state.toKeep,
+    history: state.history,
+  };
+  await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(session));
+}
+
+async function loadSession(): Promise<PersistedSession | null> {
+  const raw = await AsyncStorage.getItem(STORAGE_KEY);
+  return raw ? (JSON.parse(raw) as PersistedSession) : null;
 }
 
 // ─── Context ──────────────────────────────────────────────────────────────────
@@ -187,8 +228,9 @@ const initialState: GalleryState = {
 
 export function GalleryProvider({ children }: { children: React.ReactNode }) {
   const [state, dispatch] = useReducer(galleryReducer, initialState);
+  const sessionRef = useRef<PersistedSession | null>(null);
 
-  const loadAssets = useCallback(async () => {
+  const loadAssets = useCallback(async (session?: PersistedSession | null) => {
     dispatch({ type: 'SET_LOADING', payload: true });
     try {
       const { status } = await MediaLibrary.requestPermissionsAsync();
@@ -206,26 +248,30 @@ export function GalleryProvider({ children }: { children: React.ReactNode }) {
       dispatch({ type: 'SET_ALBUMS', payload: albums });
 
       // Load assets
+      const filterMode = session?.filterMode ?? state.filterMode;
+      const sortMode = session?.sortMode ?? state.sortMode;
+      const selectedAlbum = session?.selectedAlbum ?? state.selectedAlbum;
+
       const mediaTypeFilter: MediaLibrary.MediaTypeValue[] =
-        state.filterMode === 'all'
+        filterMode === 'all'
           ? ['photo', 'video']
-          : state.filterMode === 'photo'
+          : filterMode === 'photo'
           ? ['photo']
           : ['video'];
 
       const options: MediaLibrary.AssetsOptions = {
-        first: 500,
+        first: 1000,
         mediaType: mediaTypeFilter,
         sortBy:
-          state.sortMode === 'newest'
+          sortMode === 'newest'
             ? [[MediaLibrary.SortBy.creationTime, false]]
-            : state.sortMode === 'oldest'
+            : sortMode === 'oldest'
             ? [[MediaLibrary.SortBy.creationTime, true]]
             : [[MediaLibrary.SortBy.modificationTime, false]],
       };
 
-      if (state.selectedAlbum) {
-        options.album = state.selectedAlbum;
+      if (selectedAlbum) {
+        options.album = selectedAlbum;
       }
 
       const result = await MediaLibrary.getAssetsAsync(options);
@@ -243,6 +289,11 @@ export function GalleryProvider({ children }: { children: React.ReactNode }) {
       }));
 
       dispatch({ type: 'SET_ASSETS', payload: mapped });
+
+      // Restore session progress if filter/sort/album match
+      if (session) {
+        dispatch({ type: 'RESTORE_SESSION', payload: session });
+      }
     } catch (e) {
       console.error('loadAssets error', e);
     } finally {
@@ -250,9 +301,38 @@ export function GalleryProvider({ children }: { children: React.ReactNode }) {
     }
   }, [state.filterMode, state.sortMode, state.selectedAlbum]);
 
+  // Initial load: read saved session first
   useEffect(() => {
+    (async () => {
+      const session = await loadSession();
+      sessionRef.current = session;
+      if (session) {
+        dispatch({ type: 'SET_FILTER', payload: session.filterMode });
+        dispatch({ type: 'SET_SORT', payload: session.sortMode });
+        if (session.selectedAlbum) {
+          dispatch({ type: 'SET_ALBUM', payload: session.selectedAlbum });
+        }
+      }
+      await loadAssets(session);
+    })();
+  }, []);
+
+  // Reload on filter/sort/album changes (skip initial mount handled above)
+  const isFirstMount = useRef(true);
+  useEffect(() => {
+    if (isFirstMount.current) {
+      isFirstMount.current = false;
+      return;
+    }
     loadAssets();
   }, [state.filterMode, state.sortMode, state.selectedAlbum]);
+
+  // Persist session on every relevant state change
+  useEffect(() => {
+    if (!state.isLoading && state.assets.length > 0) {
+      saveSession(state);
+    }
+  }, [state.currentIndex, state.toDelete, state.toKeep, state.history]);
 
   const commitDeletes = useCallback(async () => {
     if (state.toDelete.length === 0) return;
@@ -261,6 +341,7 @@ export function GalleryProvider({ children }: { children: React.ReactNode }) {
       const ids = state.toDelete.map((a) => a.id);
       await MediaLibrary.deleteAssetsAsync(ids);
       dispatch({ type: 'REMOVE_DELETED_ASSETS', payload: ids });
+      await AsyncStorage.removeItem(STORAGE_KEY);
     } catch (e) {
       console.error('commitDeletes error', e);
     } finally {

@@ -1,6 +1,7 @@
-import React, { useCallback } from 'react';
+import React, { useCallback, useEffect, useRef } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   Dimensions,
   StyleSheet,
   Text,
@@ -27,6 +28,18 @@ export function SwipeScreen() {
   const navigation = useNavigation<Nav>();
 
   const isDone = state.currentIndex >= state.assets.length && !state.isLoading;
+
+  const alertShown = useRef(false);
+  useEffect(() => {
+    if (!state.isLoading && state.assets.length > 0 && !alertShown.current) {
+      alertShown.current = true;
+      Alert.alert(
+        'Caricamento completato',
+        `Sono state caricate ${state.assets.length} foto (limite massimo: 1000).`,
+        [{ text: 'OK' }]
+      );
+    }
+  }, [state.isLoading, state.assets.length]);
 
   if (!state.hasPermission && !state.isLoading) {
     return (

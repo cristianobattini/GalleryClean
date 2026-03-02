@@ -1,18 +1,34 @@
-import React, { useRef, useState } from 'react';
-import { StyleSheet, TouchableOpacity, View, Text } from 'react-native';
+import React, { useRef, useState, useEffect } from 'react';
+import { StyleSheet, TouchableOpacity, View, Text, ActivityIndicator } from 'react-native';
 import { Video, ResizeMode, AVPlaybackStatus } from 'expo-av';
 import { Ionicons } from '@expo/vector-icons';
+import * as MediaLibrary from 'expo-media-library';
 import { COLORS } from '../constants/theme';
 
 interface Props {
+  id: string;
   uri: string;
   duration: number;
 }
 
-export function VideoCard({ uri, duration }: Props) {
+export function VideoCard({ id, uri, duration }: Props) {
   const videoRef = useRef<Video>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [progress, setProgress] = useState(0);
+  const [playableUri, setPlayableUri] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const info = await MediaLibrary.getAssetInfoAsync(id);
+        if (!cancelled) setPlayableUri(info.localUri ?? uri);
+      } catch {
+        if (!cancelled) setPlayableUri(uri);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [id]);
 
   const togglePlay = async () => {
     if (!videoRef.current) return;
@@ -36,11 +52,19 @@ export function VideoCard({ uri, duration }: Props) {
     }
   };
 
+  if (!playableUri) {
+    return (
+      <View style={[styles.container, styles.loading]}>
+        <ActivityIndicator color="#fff" />
+      </View>
+    );
+  }
+
   return (
     <View style={styles.container}>
       <Video
         ref={videoRef}
-        source={{ uri }}
+        source={{ uri: playableUri }}
         style={styles.video}
         resizeMode={ResizeMode.COVER}
         onPlaybackStatusUpdate={handleStatus}
@@ -99,5 +123,9 @@ const styles = StyleSheet.create({
   progressFill: {
     height: '100%',
     backgroundColor: COLORS.keep,
+  },
+  loading: {
+    justifyContent: 'center',
+    alignItems: 'center',
   },
 });

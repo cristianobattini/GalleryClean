@@ -122,7 +122,7 @@ export function SwipableCard({ asset, onSwipeLeft, onSwipeRight, isActive }: Pro
       <Animated.View style={[styles.card, cardStyle, borderStyle]}>
         {/* Media */}
         {asset.mediaType === 'video' ? (
-          <VideoCard uri={asset.uri} duration={asset.duration ?? 0} />
+          <VideoCard id={asset.id} uri={asset.uri} duration={asset.duration ?? 0} />
         ) : (
           <Image
             source={{ uri: asset.uri }}

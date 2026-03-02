@@ -16,10 +16,11 @@
     ],
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.galleryclean.app",
+      "bundleIdentifier": "com.cristiano270.galleryclean",
       "infoPlist": {
         "NSPhotoLibraryUsageDescription": "GalleryClean needs access to your photo library to help you clean it up.",
-        "NSPhotoLibraryAddUsageDescription": "GalleryClean needs access to save photos."
+        "NSPhotoLibraryAddUsageDescription": "GalleryClean needs access to save photos.",
+        "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {
@@ -32,7 +33,10 @@
         "READ_MEDIA_IMAGES",
         "READ_MEDIA_VIDEO",
         "WRITE_EXTERNAL_STORAGE",
-        "READ_EXTERNAL_STORAGE"
+        "READ_EXTERNAL_STORAGE",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.ACCESS_MEDIA_LOCATION"
       ]
     },
     "plugins": [
@@ -45,6 +49,11 @@
         }
       ],
       "expo-font"
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "f8cd2742-d74d-48ce-a12f-37c5d35fe453"
+      }
+    }
   }
 }
