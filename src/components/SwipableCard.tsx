@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect } from 'react';
+import React, { useEffect } from 'react';
 import { Dimensions, StyleSheet, View, Text } from 'react-native';
 import {
   PanGestureHandler,
@@ -18,6 +18,7 @@ import { Image } from 'react-native';
 import { COLORS, SWIPE_THRESHOLD } from '../constants/theme';
 import { GalleryAsset } from '../context/GalleryContext';
 import { VideoCard } from './VideoCard';
+import type { VideoPlayer } from 'expo-video';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 const CARD_WIDTH = SCREEN_WIDTH - 32;
@@ -28,9 +29,10 @@ interface Props {
   onSwipeLeft: () => void;   // keep
   onSwipeRight: () => void;  // delete
   isActive: boolean;
+  videoPlayer?: VideoPlayer; // solo per la card attiva video
 }
 
-export function SwipableCard({ asset, onSwipeLeft, onSwipeRight, isActive }: Props) {
+export function SwipableCard({ asset, onSwipeLeft, onSwipeRight, isActive, videoPlayer }: Props) {
   const translateX = useSharedValue(0);
   const translateY = useSharedValue(0);
   const scale = useSharedValue(isActive ? 1 : 0.92);
@@ -49,11 +51,9 @@ export function SwipableCard({ asset, onSwipeLeft, onSwipeRight, isActive }: Pro
     onEnd: (event) => {
       if (!isActive) return;
       if (event.translationX > SWIPE_THRESHOLD) {
-        // Swipe right → DELETE
         translateX.value = withTiming(SCREEN_WIDTH * 1.5, { duration: 280 });
         runOnJS(onSwipeRight)();
       } else if (event.translationX < -SWIPE_THRESHOLD) {
-        // Swipe left → KEEP
         translateX.value = withTiming(-SCREEN_WIDTH * 1.5, { duration: 280 });
         runOnJS(onSwipeLeft)();
       } else {
@@ -79,7 +79,6 @@ export function SwipableCard({ asset, onSwipeLeft, onSwipeRight, isActive }: Pro
     };
   });
 
-  // Delete overlay (swipe right)
   const deleteOverlayStyle = useAnimatedStyle(() => {
     const opacity = interpolate(
       translateX.value,
@@ -90,7 +89,6 @@ export function SwipableCard({ asset, onSwipeLeft, onSwipeRight, isActive }: Pro
     return { opacity };
   });
 
-  // Keep overlay (swipe left)
   const keepOverlayStyle = useAnimatedStyle(() => {
     const opacity = interpolate(
       translateX.value,
@@ -101,7 +99,6 @@ export function SwipableCard({ asset, onSwipeLeft, onSwipeRight, isActive }: Pro
     return { opacity };
   });
 
-  // Border glow
   const borderStyle = useAnimatedStyle(() => {
     const borderColor = interpolateColor(
       translateX.value,
@@ -118,43 +115,43 @@ export function SwipableCard({ asset, onSwipeLeft, onSwipeRight, isActive }: Pro
   });
 
   return (
-    <PanGestureHandler onGestureEvent={gestureHandler} enabled={isActive}>
-      <Animated.View style={[styles.card, cardStyle, borderStyle]}>
-        {/* Media */}
-        {asset.mediaType === 'video' ? (
-          <VideoCard id={asset.id} uri={asset.uri} duration={asset.duration ?? 0} />
-        ) : (
-          <Image
-            source={{ uri: asset.uri }}
-            style={styles.image}
-            resizeMode="cover"
-          />
-        )}
+    <View style={[styles.wrapper, !isActive && styles.wrapperBg]}>
+      <PanGestureHandler onGestureEvent={gestureHandler} enabled={isActive} activeOffsetX={[-20, 20]}>
+        <Animated.View style={[styles.card, cardStyle, borderStyle]}>
+          {asset.mediaType === 'video' && videoPlayer ? (
+            <VideoCard player={videoPlayer} />
+          ) : asset.mediaType !== 'video' ? (
+            <Image
+              source={{ uri: asset.uri }}
+              style={styles.image}
+              resizeMode="cover"
+            />
+          ) : (
+            <View style={styles.videoPlaceholder} />
+          )}
 
-        {/* DELETE overlay */}
-        <Animated.View style={[styles.overlay, styles.deleteOverlay, deleteOverlayStyle]}>
-          <View style={styles.labelContainer}>
-            <Text style={[styles.label, { color: COLORS.accent }]}>ELIMINA</Text>
-          </View>
+          <Animated.View style={[styles.overlay, styles.deleteOverlay, deleteOverlayStyle]}>
+            <View style={styles.labelContainer}>
+              <Text style={[styles.label, { color: COLORS.accent }]}>ELIMINA</Text>
+            </View>
+          </Animated.View>
+
+          <Animated.View style={[styles.overlay, styles.keepOverlay, keepOverlayStyle]}>
+            <View style={styles.labelContainer}>
+              <Text style={[styles.label, { color: COLORS.keep }]}>TIENI</Text>
+            </View>
+          </Animated.View>
+
+          {asset.mediaType === 'video' && (
+            <View style={styles.videoBadge}>
+              <Text style={styles.videoBadgeText}>
+                {formatDuration(asset.duration ?? 0)}
+              </Text>
+            </View>
+          )}
         </Animated.View>
-
-        {/* KEEP overlay */}
-        <Animated.View style={[styles.overlay, styles.keepOverlay, keepOverlayStyle]}>
-          <View style={styles.labelContainer}>
-            <Text style={[styles.label, { color: COLORS.keep }]}>TIENI</Text>
-          </View>
-        </Animated.View>
-
-        {/* Media type badge */}
-        {asset.mediaType === 'video' && (
-          <View style={styles.videoBadge}>
-            <Text style={styles.videoBadgeText}>
-              {formatDuration(asset.duration ?? 0)}
-            </Text>
-          </View>
-        )}
-      </Animated.View>
-    </PanGestureHandler>
+      </PanGestureHandler>
+    </View>
   );
 }
 
@@ -165,6 +162,12 @@ function formatDuration(seconds: number): string {
 }
 
 const styles = StyleSheet.create({
+  wrapper: {
+    position: 'absolute',
+  },
+  wrapperBg: {
+    top: 8,
+  },
   card: {
     width: CARD_WIDTH,
     height: CARD_HEIGHT,
@@ -219,5 +222,9 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 12,
     fontWeight: '600',
+  },
+  videoPlaceholder: {
+    flex: 1,
+    backgroundColor: '#111',
   },
 });

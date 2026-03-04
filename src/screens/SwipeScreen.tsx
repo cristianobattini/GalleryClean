@@ -1,4 +1,6 @@
-import React, { useCallback, useEffect, useRef } from 'react';
+import React, { useEffect, useRef } from 'react';
+import { useVideoPlayer } from 'expo-video';
+import * as MediaLibrary from 'expo-media-library';
 import {
   ActivityIndicator,
   Alert,
@@ -40,6 +42,42 @@ export function SwipeScreen() {
       );
     }
   }, [state.isLoading, state.assets.length]);
+
+  // Single AVPlayer — tutti gli hook PRIMA dei return condizionali (Rules of Hooks)
+  const videoPlayer = useVideoPlayer(null, (p) => {
+    p.loop = true;
+    p.muted = false;
+  });
+
+  useEffect(() => {
+    if (!currentAsset || currentAsset.mediaType !== 'video') {
+      try { videoPlayer.pause(); } catch {}
+      return;
+    }
+    // ph:// URI non funziona con expo-video 1.2.x → usiamo localUri
+    // iOS 18 aggiunge un hash fragment a localUri (file:///path#hash) → lo strippimo
+    MediaLibrary.getAssetInfoAsync(currentAsset.id).then((info) => {
+      const rawUri = info.localUri ?? info.uri;
+      const uri = rawUri?.split('#')[0] ?? null;
+      console.log(`[VideoPlayer] replace → ${uri} (raw: ${rawUri})`);
+      if (!uri) { console.log('[VideoPlayer] URI null, skip'); return; }
+      try { videoPlayer.replace({ uri }); } catch (e) { console.log('[VideoPlayer] replace error:', e); }
+    }).catch((e) => console.log('[VideoPlayer] getAssetInfoAsync error:', e));
+  }, [currentAsset?.id]);
+
+  useEffect(() => {
+    // In expo-video 1.x statusChange passa il valore direttamente (non wrapped)
+    const sub = videoPlayer.addListener('statusChange', (payload: any) => {
+      // Supporta sia payload diretto (string) che oggetto { status }
+      const status: string = typeof payload === 'string' ? payload : payload?.status ?? payload;
+      console.log(`[VideoPlayer] statusChange → "${status}" (raw: ${JSON.stringify(payload)})`);
+      if (status === 'readyToPlay') {
+        console.log('[VideoPlayer] readyToPlay → play()');
+        try { videoPlayer.play(); } catch (e) { console.log('[VideoPlayer] play error:', e); }
+      }
+    });
+    return () => sub.remove();
+  }, [videoPlayer]);
 
   if (!state.hasPermission && !state.isLoading) {
     return (
@@ -113,30 +151,27 @@ export function SwipeScreen() {
 
       {/* Cards stack */}
       <View style={styles.cardArea}>
-        {/* Background card */}
+        {/* Background card (preloaded, same key as when it becomes active) */}
         {nextAsset && (
-          <View style={[styles.cardWrapper, styles.bgCard]}>
-            <SwipableCard
-              key={`bg-${nextAsset.id}`}
-              asset={nextAsset}
-              onSwipeLeft={() => {}}
-              onSwipeRight={() => {}}
-              isActive={false}
-            />
-          </View>
+          <SwipableCard
+            key={nextAsset.id}
+            asset={nextAsset}
+            onSwipeLeft={() => {}}
+            onSwipeRight={() => {}}
+            isActive={false}
+          />
         )}
 
         {/* Active card */}
         {currentAsset && (
-          <View style={styles.cardWrapper}>
-            <SwipableCard
-              key={currentAsset.id}
-              asset={currentAsset}
-              onSwipeLeft={swipeKeep}
-              onSwipeRight={swipeDelete}
-              isActive={true}
-            />
-          </View>
+          <SwipableCard
+            key={currentAsset.id}
+            asset={currentAsset}
+            onSwipeLeft={swipeKeep}
+            onSwipeRight={swipeDelete}
+            isActive={true}
+            videoPlayer={currentAsset.mediaType === 'video' ? videoPlayer : undefined}
+          />
         )}
       </View>
 
@@ -225,12 +260,6 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-  },
-  cardWrapper: {
-    position: 'absolute',
-  },
-  bgCard: {
-    top: 8,
   },
   hints: {
     flexDirection: 'row',

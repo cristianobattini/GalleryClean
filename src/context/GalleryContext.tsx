@@ -51,14 +51,14 @@ interface GalleryState {
   hasPermission: boolean;
   isLoading: boolean;
   isDeleting: boolean;
-  totalSize: number;
+  needsReload: boolean;
 }
 
 type GalleryAction =
   | { type: 'SET_PERMISSION'; payload: boolean }
   | { type: 'SET_LOADING'; payload: boolean }
   | { type: 'SET_DELETING'; payload: boolean }
-  | { type: 'SET_ASSETS'; payload: GalleryAsset[] }
+  | { type: 'LOAD_COMPLETE'; payload: { assets: GalleryAsset[]; session: PersistedSession | null; filterMode: FilterMode; sortMode: SortMode; selectedAlbum: string | null } }
   | { type: 'SET_ALBUMS'; payload: Album[] }
   | { type: 'SWIPE_DELETE' }
   | { type: 'SWIPE_KEEP' }
@@ -80,8 +80,22 @@ function galleryReducer(state: GalleryState, action: GalleryAction): GalleryStat
       return { ...state, isLoading: action.payload };
     case 'SET_DELETING':
       return { ...state, isDeleting: action.payload };
-    case 'SET_ASSETS':
-      return { ...state, assets: action.payload, currentIndex: 0 };
+    case 'LOAD_COMPLETE': {
+      const { assets, session, filterMode, sortMode, selectedAlbum } = action.payload;
+      const currentIndex = session ? Math.min(session.currentIndex, assets.length) : 0;
+      return {
+        ...state,
+        assets,
+        currentIndex,
+        filterMode,
+        sortMode,
+        selectedAlbum,
+        toDelete: session?.toDelete ?? [],
+        toKeep: session?.toKeep ?? [],
+        history: session?.history ?? [],
+        needsReload: false,
+      };
+    }
     case 'SET_ALBUMS':
       return { ...state, albums: action.payload };
 
@@ -129,11 +143,11 @@ function galleryReducer(state: GalleryState, action: GalleryAction): GalleryStat
     }
 
     case 'SET_ALBUM':
-      return { ...state, selectedAlbum: action.payload, currentIndex: 0, history: [], toDelete: [], toKeep: [] };
+      return { ...state, selectedAlbum: action.payload, currentIndex: 0, history: [], toDelete: [], toKeep: [], needsReload: true };
     case 'SET_FILTER':
-      return { ...state, filterMode: action.payload, currentIndex: 0, history: [], toDelete: [], toKeep: [] };
+      return { ...state, filterMode: action.payload, currentIndex: 0, history: [], toDelete: [], toKeep: [], needsReload: true };
     case 'SET_SORT':
-      return { ...state, sortMode: action.payload, currentIndex: 0, history: [], toDelete: [], toKeep: [] };
+      return { ...state, sortMode: action.payload, currentIndex: 0, history: [], toDelete: [], toKeep: [], needsReload: true };
 
     case 'REMOVE_DELETED_ASSETS': {
       const ids = new Set(action.payload);
@@ -223,12 +237,46 @@ const initialState: GalleryState = {
   hasPermission: false,
   isLoading: false,
   isDeleting: false,
-  totalSize: 0,
+  needsReload: false,
 };
 
 export function GalleryProvider({ children }: { children: React.ReactNode }) {
   const [state, dispatch] = useReducer(galleryReducer, initialState);
   const sessionRef = useRef<PersistedSession | null>(null);
+
+  const buildOptions = useCallback((
+    filterMode: FilterMode,
+    sortMode: SortMode,
+    selectedAlbum: string | null,
+  ): MediaLibrary.AssetsOptions => {
+    const mediaTypeFilter: MediaLibrary.MediaTypeValue[] =
+      filterMode === 'all' ? ['photo', 'video'] : filterMode === 'photo' ? ['photo'] : ['video'];
+    const options: MediaLibrary.AssetsOptions = {
+      first: 100000,
+      mediaType: mediaTypeFilter,
+      sortBy:
+        sortMode === 'newest'
+          ? [[MediaLibrary.SortBy.creationTime, false]]
+          : sortMode === 'oldest'
+          ? [[MediaLibrary.SortBy.creationTime, true]]
+          : [[MediaLibrary.SortBy.modificationTime, false]],
+    };
+    if (selectedAlbum) options.album = selectedAlbum;
+    return options;
+  }, []);
+
+  const mapAssets = (raw: MediaLibrary.Asset[]): GalleryAsset[] =>
+    raw.map((a) => ({
+      id: a.id,
+      uri: a.uri,
+      mediaType: a.mediaType as 'photo' | 'video',
+      duration: a.duration,
+      width: a.width,
+      height: a.height,
+      creationTime: a.creationTime,
+      modificationTime: a.modificationTime,
+      filename: a.filename,
+    }));
 
   const loadAssets = useCallback(async (session?: PersistedSession | null) => {
     dispatch({ type: 'SET_LOADING', payload: true });
@@ -238,94 +286,51 @@ export function GalleryProvider({ children }: { children: React.ReactNode }) {
       dispatch({ type: 'SET_PERMISSION', payload: granted });
       if (!granted) return;
 
-      // Load albums
       const albumList = await MediaLibrary.getAlbumsAsync({ includeSmartAlbums: true });
-      const albums: Album[] = albumList.map((a) => ({
-        id: a.id,
-        title: a.title,
-        assetCount: a.assetCount,
-      }));
-      dispatch({ type: 'SET_ALBUMS', payload: albums });
+      dispatch({
+        type: 'SET_ALBUMS',
+        payload: albumList.map((a) => ({ id: a.id, title: a.title, assetCount: a.assetCount })),
+      });
 
-      // Load assets
       const filterMode = session?.filterMode ?? state.filterMode;
       const sortMode = session?.sortMode ?? state.sortMode;
       const selectedAlbum = session?.selectedAlbum ?? state.selectedAlbum;
 
-      const mediaTypeFilter: MediaLibrary.MediaTypeValue[] =
-        filterMode === 'all'
-          ? ['photo', 'video']
-          : filterMode === 'photo'
-          ? ['photo']
-          : ['video'];
+      const result = await MediaLibrary.getAssetsAsync(
+        buildOptions(filterMode, sortMode, selectedAlbum)
+      );
 
-      const options: MediaLibrary.AssetsOptions = {
-        first: 1000,
-        mediaType: mediaTypeFilter,
-        sortBy:
-          sortMode === 'newest'
-            ? [[MediaLibrary.SortBy.creationTime, false]]
-            : sortMode === 'oldest'
-            ? [[MediaLibrary.SortBy.creationTime, true]]
-            : [[MediaLibrary.SortBy.modificationTime, false]],
-      };
-
-      if (selectedAlbum) {
-        options.album = selectedAlbum;
-      }
-
-      const result = await MediaLibrary.getAssetsAsync(options);
-
-      const mapped: GalleryAsset[] = result.assets.map((a) => ({
-        id: a.id,
-        uri: a.uri,
-        mediaType: a.mediaType as 'photo' | 'video',
-        duration: a.duration,
-        width: a.width,
-        height: a.height,
-        creationTime: a.creationTime,
-        modificationTime: a.modificationTime,
-        filename: a.filename,
-      }));
-
-      dispatch({ type: 'SET_ASSETS', payload: mapped });
-
-      // Restore session progress if filter/sort/album match
-      if (session) {
-        dispatch({ type: 'RESTORE_SESSION', payload: session });
-      }
+      dispatch({
+        type: 'LOAD_COMPLETE',
+        payload: {
+          assets: mapAssets(result.assets),
+          session: session ?? null,
+          filterMode,
+          sortMode,
+          selectedAlbum,
+        },
+      });
     } catch (e) {
       console.error('loadAssets error', e);
     } finally {
       dispatch({ type: 'SET_LOADING', payload: false });
     }
-  }, [state.filterMode, state.sortMode, state.selectedAlbum]);
+  }, [state.filterMode, state.sortMode, state.selectedAlbum, buildOptions]);
 
   // Initial load: read saved session first
   useEffect(() => {
     (async () => {
       const session = await loadSession();
       sessionRef.current = session;
-      if (session) {
-        dispatch({ type: 'SET_FILTER', payload: session.filterMode });
-        dispatch({ type: 'SET_SORT', payload: session.sortMode });
-        if (session.selectedAlbum) {
-          dispatch({ type: 'SET_ALBUM', payload: session.selectedAlbum });
-        }
-      }
       await loadAssets(session);
     })();
   }, []);
 
-  // Reload on filter/sort/album changes (skip initial mount handled above)
-  const isFirstMount = useRef(true);
+  // Reload only when user explicitly changes filter/sort/album (needsReload flag)
   useEffect(() => {
-    if (isFirstMount.current) {
-      isFirstMount.current = false;
-      return;
-    }
+    if (!state.needsReload) return;
     loadAssets();
-  }, [state.filterMode, state.sortMode, state.selectedAlbum]);
+  }, [state.needsReload]);
 
   // Persist session on every relevant state change
   useEffect(() => {

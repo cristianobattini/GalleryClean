@@ -1,6 +1,0 @@
-** BUILD FAILED **
-
-
-The following build commands failed:
-	CompileC /Users/cristiano/Library/Developer/Xcode/DerivedData/GalleryClean-fbubbkpgweriwbelckufeutjrqoq/Build/Intermediates.noindex/Pods.build/Debug-iphonesimulator/React-RCTFabric.build/Objects-normal/x86_64/RCTSafeAreaViewComponentView.o /Users/cristiano/Desktop/GalleryClean/node_modules/react-native/React/Fabric/Mounting/ComponentViews/SafeAreaView/RCTSafeAreaViewComponentView.mm normal x86_64 objective-c++ com.apple.compilers.llvm.clang.1_0.compiler (in target 'React-RCTFabric' from project 'Pods')
-(1 failure)
