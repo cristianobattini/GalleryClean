@@ -1,28 +1,23 @@
-import React from 'react';
+import React, { forwardRef } from 'react';
 import { StyleSheet, View } from 'react-native';
-import { VideoView } from 'expo-video';
-import type { VideoPlayer } from 'expo-video';
+import { Video, ResizeMode } from 'expo-av';
 
-interface Props {
-  player: VideoPlayer;
-}
-
-// VideoCard è solo un wrapper di VideoView.
-// Il player viene creato UNA VOLTA in SwipeScreen e riutilizzato con player.replace()
-// per evitare di accumulare istanze AVPlayer native su iOS (limite ~64).
-export function VideoCard({ player }: Props) {
+// VideoCard usa expo-av con forwardRef.
+// Il ref viene creato UNA VOLTA in SwipeScreen e passato qui.
+// Un solo Video component è montato alla volta → nessun accumulo AVPlayer.
+export const VideoCard = forwardRef<Video>(function VideoCard(_, ref) {
   return (
     <View style={styles.container}>
-      <VideoView
-        player={player}
+      <Video
+        ref={ref}
         style={styles.video}
-        contentFit="cover"
-        nativeControls={false}
-        allowsFullscreen={false}
+        resizeMode={ResizeMode.COVER}
+        isLooping
+        isMuted={false}
       />
     </View>
   );
-}
+});
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#000' },

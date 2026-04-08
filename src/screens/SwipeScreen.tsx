@@ -1,6 +1,7 @@
 import React, { useEffect, useRef } from 'react';
-import { useVideoPlayer } from 'expo-video';
-import * as MediaLibrary from 'expo-media-library';
+import { Video } from 'expo-av';
+import * as FileSystem from 'expo-file-system';
+
 import {
   ActivityIndicator,
   Alert,
@@ -43,41 +44,35 @@ export function SwipeScreen() {
     }
   }, [state.isLoading, state.assets.length]);
 
-  // Single AVPlayer — tutti gli hook PRIMA dei return condizionali (Rules of Hooks)
-  const videoPlayer = useVideoPlayer(null, (p) => {
-    p.loop = true;
-    p.muted = false;
-  });
+  // Un solo ref Video — tutti gli hook PRIMA dei return condizionali (Rules of Hooks)
+  // expo-av monta un componente Video fresco ad ogni asset → nessun accumulo AVPlayer
+  const videoRef = useRef<Video>(null);
 
   useEffect(() => {
     if (!currentAsset || currentAsset.mediaType !== 'video') {
-      try { videoPlayer.pause(); } catch {}
+      videoRef.current?.pauseAsync().catch(() => {});
       return;
     }
-    // ph:// URI non funziona con expo-video 1.2.x → usiamo localUri
-    // iOS 18 aggiunge un hash fragment a localUri (file:///path#hash) → lo strippimo
-    MediaLibrary.getAssetInfoAsync(currentAsset.id).then((info) => {
-      const rawUri = info.localUri ?? info.uri;
-      const uri = rawUri?.split('#')[0] ?? null;
-      console.log(`[VideoPlayer] replace → ${uri} (raw: ${rawUri})`);
-      if (!uri) { console.log('[VideoPlayer] URI null, skip'); return; }
-      try { videoPlayer.replace({ uri }); } catch (e) { console.log('[VideoPlayer] replace error:', e); }
-    }).catch((e) => console.log('[VideoPlayer] getAssetInfoAsync error:', e));
-  }, [currentAsset?.id]);
-
-  useEffect(() => {
-    // In expo-video 1.x statusChange passa il valore direttamente (non wrapped)
-    const sub = videoPlayer.addListener('statusChange', (payload: any) => {
-      // Supporta sia payload diretto (string) che oggetto { status }
-      const status: string = typeof payload === 'string' ? payload : payload?.status ?? payload;
-      console.log(`[VideoPlayer] statusChange → "${status}" (raw: ${JSON.stringify(payload)})`);
-      if (status === 'readyToPlay') {
-        console.log('[VideoPlayer] readyToPlay → play()');
-        try { videoPlayer.play(); } catch (e) { console.log('[VideoPlayer] play error:', e); }
+    let cancelled = false;
+    (async () => {
+      try {
+        // Copia il video via Photos framework (ph://) nella sandbox dell'app
+        // Questo bypassa la restrizione iOS che impedisce accesso diretto a DCIM
+        const phUri = currentAsset.uri;
+        const ext = (currentAsset.filename?.split('.').pop() ?? 'mov').toLowerCase();
+        const destUri = `${FileSystem.cacheDirectory}preview.${ext}`;
+        console.log(`[VideoAV] copying ${phUri} → ${destUri}`);
+        await FileSystem.deleteAsync(destUri, { idempotent: true });
+        await FileSystem.copyAsync({ from: phUri, to: destUri });
+        if (cancelled || !videoRef.current) return;
+        console.log(`[VideoAV] loadAsync → ${destUri}`);
+        await videoRef.current.loadAsync({ uri: destUri }, { shouldPlay: true, isLooping: true }, false);
+      } catch (e) {
+        console.log('[VideoAV] error:', e);
       }
-    });
-    return () => sub.remove();
-  }, [videoPlayer]);
+    })();
+    return () => { cancelled = true; };
+  }, [currentAsset?.id]);
 
   if (!state.hasPermission && !state.isLoading) {
     return (
@@ -129,7 +124,7 @@ export function SwipeScreen() {
     <SafeAreaView style={styles.root}>
       {/* Header */}
       <View style={styles.header}>
-        <Text style={styles.appName}>CLEAN</Text>
+        <Text style={styles.appName}>CLEAN 🧹</Text>
         <View style={styles.headerRight}>
           {state.toDelete.length > 0 && (
             <TouchableOpacity
@@ -170,7 +165,7 @@ export function SwipeScreen() {
             onSwipeLeft={swipeKeep}
             onSwipeRight={swipeDelete}
             isActive={true}
-            videoPlayer={currentAsset.mediaType === 'video' ? videoPlayer : undefined}
+            videoRef={currentAsset.mediaType === 'video' ? videoRef : undefined}
           />
         )}
       </View>

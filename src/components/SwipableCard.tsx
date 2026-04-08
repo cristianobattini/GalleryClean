@@ -18,7 +18,7 @@ import { Image } from 'react-native';
 import { COLORS, SWIPE_THRESHOLD } from '../constants/theme';
 import { GalleryAsset } from '../context/GalleryContext';
 import { VideoCard } from './VideoCard';
-import type { VideoPlayer } from 'expo-video';
+import { Video } from 'expo-av';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 const CARD_WIDTH = SCREEN_WIDTH - 32;
@@ -29,10 +29,10 @@ interface Props {
   onSwipeLeft: () => void;   // keep
   onSwipeRight: () => void;  // delete
   isActive: boolean;
-  videoPlayer?: VideoPlayer; // solo per la card attiva video
+  videoRef?: React.RefObject<Video>; // solo per la card attiva video
 }
 
-export function SwipableCard({ asset, onSwipeLeft, onSwipeRight, isActive, videoPlayer }: Props) {
+export function SwipableCard({ asset, onSwipeLeft, onSwipeRight, isActive, videoRef }: Props) {
   const translateX = useSharedValue(0);
   const translateY = useSharedValue(0);
   const scale = useSharedValue(isActive ? 1 : 0.92);
@@ -118,8 +118,8 @@ export function SwipableCard({ asset, onSwipeLeft, onSwipeRight, isActive, video
     <View style={[styles.wrapper, !isActive && styles.wrapperBg]}>
       <PanGestureHandler onGestureEvent={gestureHandler} enabled={isActive} activeOffsetX={[-20, 20]}>
         <Animated.View style={[styles.card, cardStyle, borderStyle]}>
-          {asset.mediaType === 'video' && videoPlayer ? (
-            <VideoCard player={videoPlayer} />
+          {asset.mediaType === 'video' && videoRef ? (
+            <VideoCard ref={videoRef} />
           ) : asset.mediaType !== 'video' ? (
             <Image
               source={{ uri: asset.uri }}
