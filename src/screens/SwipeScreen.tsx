@@ -17,6 +17,7 @@ import { StackNavigationProp } from '@react-navigation/stack';
 import { Ionicons } from '@expo/vector-icons';
 
 import { useGallery } from '../context/GalleryContext';
+import { t } from '../i18n';
 import { SwipableCard } from '../components/SwipableCard';
 import { ActionButtons } from '../components/ActionButtons';
 import { ProgressBar } from '../components/ProgressBar';
@@ -37,9 +38,9 @@ export function SwipeScreen() {
     if (!state.isLoading && state.assets.length > 0 && !alertShown.current) {
       alertShown.current = true;
       Alert.alert(
-        'Caricamento completato',
-        `Sono state caricate ${state.assets.length} foto (limite massimo: 1000).`,
-        [{ text: 'OK' }]
+        t.loadedTitle,
+        t.loadedBody(state.assets.length),
+        [{ text: t.ok }]
       );
     }
   }, [state.isLoading, state.assets.length]);
@@ -78,10 +79,8 @@ export function SwipeScreen() {
     return (
       <SafeAreaView style={styles.center}>
         <Ionicons name="images-outline" size={64} color={COLORS.textMuted} />
-        <Text style={styles.emptyTitle}>Nessun accesso</Text>
-        <Text style={styles.emptySubtitle}>
-          Abilita l'accesso alla libreria foto nelle impostazioni.
-        </Text>
+        <Text style={styles.emptyTitle}>{t.noAccess}</Text>
+        <Text style={styles.emptySubtitle}>{t.noAccessSub}</Text>
       </SafeAreaView>
     );
   }
@@ -90,7 +89,7 @@ export function SwipeScreen() {
     return (
       <SafeAreaView style={styles.center}>
         <ActivityIndicator size="large" color={COLORS.keep} />
-        <Text style={styles.loadingText}>Caricamento galleria...</Text>
+        <Text style={styles.loadingText}>{t.loading}</Text>
       </SafeAreaView>
     );
   }
@@ -99,18 +98,18 @@ export function SwipeScreen() {
     return (
       <SafeAreaView style={styles.center}>
         <Ionicons name="checkmark-circle-outline" size={72} color={COLORS.keep} />
-        <Text style={styles.emptyTitle}>Tutto revisionato!</Text>
+        <Text style={styles.emptyTitle}>{t.allReviewed}</Text>
         <Text style={styles.emptySubtitle}>
           {state.toDelete.length > 0
-            ? `${state.toDelete.length} foto da eliminare`
-            : 'Nessuna foto da eliminare'}
+            ? t.toDelete(state.toDelete.length)
+            : t.nothingToDelete}
         </Text>
         {state.toDelete.length > 0 && (
           <TouchableOpacity
             style={styles.summaryBtn}
             onPress={() => navigation.navigate('Summary')}
           >
-            <Text style={styles.summaryBtnText}>Vedi riepilogo</Text>
+            <Text style={styles.summaryBtnText}>{t.viewSummary}</Text>
           </TouchableOpacity>
         )}
       </SafeAreaView>
@@ -174,10 +173,10 @@ export function SwipeScreen() {
       <View style={styles.hints}>
         <View style={styles.hintLeft}>
           <Ionicons name="arrow-back" size={14} color={COLORS.keep} />
-          <Text style={[styles.hintText, { color: COLORS.keep }]}>TIENI</Text>
+          <Text style={[styles.hintText, { color: COLORS.keep }]}>{t.keep}</Text>
         </View>
         <View style={styles.hintRight}>
-          <Text style={[styles.hintText, { color: COLORS.accent }]}>ELIMINA</Text>
+          <Text style={[styles.hintText, { color: COLORS.accent }]}>{t.delete}</Text>
           <Ionicons name="arrow-forward" size={14} color={COLORS.accent} />
         </View>
       </View>

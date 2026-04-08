@@ -15,6 +15,7 @@ import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useGallery, GalleryAsset } from '../context/GalleryContext';
 import { COLORS } from '../constants/theme';
+import { t } from '../i18n';
 
 const { width: W } = Dimensions.get('window');
 const THUMB = (W - 48 - 8) / 3;
@@ -26,12 +27,12 @@ export function SummaryScreen() {
 
   const handleCommit = () => {
     Alert.alert(
-      'Elimina definitivamente',
-      `Stai per eliminare ${state.toDelete.length} file. Questa azione è irreversibile.`,
+      t.deleteConfirmTitle,
+      t.deleteConfirmBody(state.toDelete.length),
       [
-        { text: 'Annulla', style: 'cancel' },
+        { text: t.cancel, style: 'cancel' },
         {
-          text: 'Elimina',
+          text: t.delete,
           style: 'destructive',
           onPress: async () => {
             await commitDeletes();
@@ -49,7 +50,7 @@ export function SummaryScreen() {
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
           <Ionicons name="arrow-back" size={22} color={COLORS.text} />
         </TouchableOpacity>
-        <Text style={styles.title}>RIEPILOGO</Text>
+        <Text style={styles.title}>{t.summary}</Text>
         <View style={{ width: 30 }} />
       </View>
 
@@ -57,26 +58,26 @@ export function SummaryScreen() {
       <View style={styles.statsRow}>
         <View style={styles.statCard}>
           <Text style={[styles.statNum, { color: COLORS.accent }]}>{state.toDelete.length}</Text>
-          <Text style={styles.statLabel}>da eliminare</Text>
+          <Text style={styles.statLabel}>{t.toDeleteLabel}</Text>
         </View>
         <View style={[styles.statDivider]} />
         <View style={styles.statCard}>
           <Text style={[styles.statNum, { color: COLORS.keep }]}>{state.toKeep.length}</Text>
-          <Text style={styles.statLabel}>tenute</Text>
+          <Text style={styles.statLabel}>{t.kept}</Text>
         </View>
         <View style={[styles.statDivider]} />
         <View style={styles.statCard}>
           <Text style={[styles.statNum, { color: COLORS.text }]}>
             {state.assets.length - state.currentIndex}
           </Text>
-          <Text style={styles.statLabel}>rimanenti</Text>
+          <Text style={styles.statLabel}>{t.remaining}</Text>
         </View>
       </View>
 
       {state.toDelete.length === 0 ? (
         <View style={styles.empty}>
           <Ionicons name="checkmark-circle-outline" size={56} color={COLORS.keep} />
-          <Text style={styles.emptyText}>Nessuna foto da eliminare</Text>
+          <Text style={styles.emptyText}>{t.nothingToDeleteSummary}</Text>
         </View>
       ) : (
         <FlatList
@@ -116,8 +117,8 @@ export function SummaryScreen() {
             <Ionicons name="trash-outline" size={20} color="#fff" />
             <Text style={styles.deleteBtnText}>
               {state.isDeleting
-                ? 'Eliminazione...'
-                : `Elimina ${state.toDelete.length} file`}
+                ? t.deleting
+                : t.deleteFiles(state.toDelete.length)}
             </Text>
           </TouchableOpacity>
         </View>

@@ -11,21 +11,22 @@ import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useGallery, FilterMode, SortMode } from '../context/GalleryContext';
 import { COLORS } from '../constants/theme';
+import { t } from '../i18n';
 
 export function FilterScreen() {
   const { state, setAlbum, setFilter, setSort } = useGallery();
   const navigation = useNavigation();
 
   const filterOptions: { label: string; value: FilterMode; icon: string }[] = [
-    { label: 'Tutto', value: 'all', icon: 'layers-outline' },
-    { label: 'Foto', value: 'photo', icon: 'image-outline' },
-    { label: 'Video', value: 'video', icon: 'videocam-outline' },
+    { label: t.all, value: 'all', icon: 'layers-outline' },
+    { label: t.photos, value: 'photo', icon: 'image-outline' },
+    { label: t.videos, value: 'video', icon: 'videocam-outline' },
   ];
 
   const sortOptions: { label: string; value: SortMode; icon: string }[] = [
-    { label: 'Più recenti', value: 'newest', icon: 'arrow-down-outline' },
-    { label: 'Più vecchi', value: 'oldest', icon: 'arrow-up-outline' },
-    { label: 'Ultima modifica', value: 'size', icon: 'time-outline' },
+    { label: t.newest, value: 'newest', icon: 'arrow-down-outline' },
+    { label: t.oldest, value: 'oldest', icon: 'arrow-up-outline' },
+    { label: t.lastModified, value: 'size', icon: 'time-outline' },
   ];
 
   return (
@@ -35,13 +36,13 @@ export function FilterScreen() {
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
           <Ionicons name="arrow-back" size={22} color={COLORS.text} />
         </TouchableOpacity>
-        <Text style={styles.title}>FILTRI</Text>
+        <Text style={styles.title}>{t.filters}</Text>
         <View style={{ width: 30 }} />
       </View>
 
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         {/* Media type */}
-        <Text style={styles.sectionLabel}>TIPO DI MEDIA</Text>
+        <Text style={styles.sectionLabel}>{t.mediaType}</Text>
         <View style={styles.optionRow}>
           {filterOptions.map((opt) => (
             <TouchableOpacity
@@ -70,7 +71,7 @@ export function FilterScreen() {
         </View>
 
         {/* Sort */}
-        <Text style={styles.sectionLabel}>ORDINA PER</Text>
+        <Text style={styles.sectionLabel}>{t.sortBy}</Text>
         <View style={styles.optionRow}>
           {sortOptions.map((opt) => (
             <TouchableOpacity
@@ -99,7 +100,7 @@ export function FilterScreen() {
         </View>
 
         {/* Albums */}
-        <Text style={styles.sectionLabel}>ALBUM</Text>
+        <Text style={styles.sectionLabel}>{t.album}</Text>
         {/* All option */}
         <TouchableOpacity
           style={[styles.albumRow, state.selectedAlbum === null && styles.albumRowActive]}
@@ -111,7 +112,7 @@ export function FilterScreen() {
             color={state.selectedAlbum === null ? COLORS.keep : COLORS.textMuted}
           />
           <Text style={[styles.albumText, state.selectedAlbum === null && { color: COLORS.keep }]}>
-            Tutti i media
+            {t.allMedia}
           </Text>
           {state.selectedAlbum === null && (
             <Ionicons name="checkmark" size={18} color={COLORS.keep} style={{ marginLeft: 'auto' }} />
@@ -138,7 +139,7 @@ export function FilterScreen() {
               >
                 {album.title}
               </Text>
-              <Text style={styles.albumCount}>{album.assetCount} elementi</Text>
+              <Text style={styles.albumCount}>{t.items(album.assetCount)}</Text>
             </View>
             {state.selectedAlbum === album.id && (
               <Ionicons name="checkmark" size={18} color={COLORS.keep} />

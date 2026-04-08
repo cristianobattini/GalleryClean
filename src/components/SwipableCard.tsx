@@ -19,6 +19,7 @@ import { COLORS, SWIPE_THRESHOLD } from '../constants/theme';
 import { GalleryAsset } from '../context/GalleryContext';
 import { VideoCard } from './VideoCard';
 import { Video } from 'expo-av';
+import { t } from '../i18n';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 const CARD_WIDTH = SCREEN_WIDTH - 32;
@@ -132,13 +133,13 @@ export function SwipableCard({ asset, onSwipeLeft, onSwipeRight, isActive, video
 
           <Animated.View style={[styles.overlay, styles.deleteOverlay, deleteOverlayStyle]}>
             <View style={styles.labelContainer}>
-              <Text style={[styles.label, { color: COLORS.accent }]}>ELIMINA</Text>
+              <Text style={[styles.label, { color: COLORS.accent }]}>{t.delete}</Text>
             </View>
           </Animated.View>
 
           <Animated.View style={[styles.overlay, styles.keepOverlay, keepOverlayStyle]}>
             <View style={styles.labelContainer}>
-              <Text style={[styles.label, { color: COLORS.keep }]}>TIENI</Text>
+              <Text style={[styles.label, { color: COLORS.keep }]}>{t.keep}</Text>
             </View>
           </Animated.View>
 
