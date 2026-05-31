@@ -1,0 +1,20 @@
+diff --git a/node_modules/expo-media-library/ios/MediaLibraryUtilities.swift b/node_modules/expo-media-library/ios/MediaLibraryUtilities.swift
+index d9048f5..b7a7aef 100644
+--- a/node_modules/expo-media-library/ios/MediaLibraryUtilities.swift
++++ b/node_modules/expo-media-library/ios/MediaLibraryUtilities.swift
+@@ -45,12 +45,14 @@ func exportDate(_ date: Date?) -> Double? {
+ 
+ func stringifyAlbumType(type: PHAssetCollectionType) -> String {
+   switch type {
+-  case.album:
++  case .album:
+     return "album"
+   case .moment:
+     return "moment"
+   case .smartAlbum:
+     return "smartAlbum"
++  @unknown default:
++    return "unknown"
+   }
+ }
+ 

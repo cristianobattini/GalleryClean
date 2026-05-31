@@ -1,0 +1,13 @@
+diff --git a/node_modules/expo-video/ios/VideoPlayerObserver.swift b/node_modules/expo-video/ios/VideoPlayerObserver.swift
+index d289e26..619f298 100644
+--- a/node_modules/expo-video/ios/VideoPlayerObserver.swift
++++ b/node_modules/expo-video/ios/VideoPlayerObserver.swift
+@@ -234,6 +234,8 @@ class VideoPlayerObserver {
+       } else {
+         status = .readyToPlay
+       }
++    @unknown default:
++      break
+     }
+ 
+     delegates.forEach { delegate in
